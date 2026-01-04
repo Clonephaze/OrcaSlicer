@@ -1,0 +1,138 @@
+name: Generate Appcast
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to generate appcast for (e.g., 2.3.2)'
+        required: true
+
+jobs:
+  generate_appcast:
+    name: Generate and Deploy Appcast
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version from release or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Download release assets info
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v$VERSION"
+
+          # Get release info
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+
+          # Get macOS DMG URL and size
+          # Use browser_download_url for public access (not .url which is the API endpoint)
+          MAC_ASSET=$(gh release view "$TAG" --json assets -q '.assets[] | select(.name | contains("Mac_universal")) | select(.name | endswith(".dmg"))')
+          if [ -n "$MAC_ASSET" ]; then
+            MAC_URL=$(echo "$MAC_ASSET" | jq -r '.browser_download_url // .url')
+            MAC_SIZE=$(echo "$MAC_ASSET" | jq -r '.size')
+            echo "mac_url=$MAC_URL" >> $GITHUB_OUTPUT
+            echo "mac_size=$MAC_SIZE" >> $GITHUB_OUTPUT
+          fi
+
+          # Get Windows installer URL and size
+          # Use browser_download_url for public access (not .url which is the API endpoint)
+          WIN_ASSET=$(gh release view "$TAG" --json assets -q '.assets[] | select(.name | contains("Windows_Installer")) | select(.name | endswith(".exe"))')
+          if [ -n "$WIN_ASSET" ]; then
+            WIN_URL=$(echo "$WIN_ASSET" | jq -r '.browser_download_url // .url')
+            WIN_SIZE=$(echo "$WIN_ASSET" | jq -r '.size')
+            echo "win_url=$WIN_URL" >> $GITHUB_OUTPUT
+            echo "win_size=$WIN_SIZE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download signatures
+        id: signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v$VERSION"
+
+          # Try to download macOS signature artifact
+          MAC_SIG_ARTIFACT="OrcaSlicer_Mac_universal_V${VERSION}_sig"
+          if gh run download --name "$MAC_SIG_ARTIFACT" -D /tmp/mac_sig 2>/dev/null; then
+            MAC_SIG=$(cat /tmp/mac_sig/*.sig)
+            echo "mac_signature=$MAC_SIG" >> $GITHUB_OUTPUT
+            echo "Found macOS signature: $MAC_SIG"
+          else
+            echo "No macOS signature artifact found"
+          fi
+
+          # For Windows, signature would come from WinSparkle signing (if implemented)
+          # echo "win_signature=$WIN_SIG" >> $GITHUB_OUTPUT
+
+      - name: Generate appcast.xml
+        run: |
+          python scripts/generate_appcast.py \
+            --version "${{ steps.version.outputs.version }}" \
+            --release-notes-url "${{ steps.assets.outputs.release_url }}" \
+            --mac-url "${{ steps.assets.outputs.mac_url }}" \
+            --mac-signature "${{ steps.signatures.outputs.mac_signature }}" \
+            --mac-length "${{ steps.assets.outputs.mac_size }}" \
+            --output appcast.xml
+
+          echo "Generated appcast.xml:"
+          cat appcast.xml
+
+      - name: Upload appcast artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast
+          path: appcast.xml
+
+      # Deploy to Cloudflare KV (for check-version.orcaslicer.com Worker)
+      - name: Deploy appcast to Cloudflare KV
+        if: github.event_name == 'release'
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+        run: |
+          if [ -n "$CF_API_TOKEN" ] && [ -n "$CF_ACCOUNT_ID" ] && [ -n "$KV_NAMESPACE_ID" ]; then
+            # Deploy appcast.xml
+            curl -X PUT \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/appcast.xml" \
+              -H "Authorization: Bearer $CF_API_TOKEN" \
+              -H "Content-Type: text/plain" \
+              --data-binary @appcast.xml
+            echo "Appcast deployed to Cloudflare KV"
+
+            # Deploy macOS signature file (for verification/auditing)
+            if [ -n "${{ steps.signatures.outputs.mac_signature }}" ]; then
+              echo "${{ steps.signatures.outputs.mac_signature }}" > mac_signature.txt
+              curl -X PUT \
+                "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/signatures/${{ steps.version.outputs.version }}/mac.sig" \
+                -H "Authorization: Bearer $CF_API_TOKEN" \
+                -H "Content-Type: text/plain" \
+                --data-binary @mac_signature.txt
+              echo "macOS signature deployed to Cloudflare KV"
+            fi
+          else
+            echo "Cloudflare credentials not configured, skipping deployment"
+          fi

@@ -60,6 +60,7 @@
 #include "MarkdownTip.hpp"
 #include "NetworkTestDialog.hpp"
 #include "ConfigWizard.hpp"
+#include "UpdateManager.hpp"
 #include "Widgets/WebView.hpp"
 #include "DailyTips.hpp"
 #include "FilamentMapDialog.hpp"
@@ -2332,7 +2333,11 @@ static wxMenu* generate_help_menu()
     // Check New Version
     append_menu_item(helpMenu, wxID_ANY, _L("Check for Update"), _L("Check for Update"),
         [](wxCommandEvent&) {
+#if defined(ORCA_HAS_SPARKLE) || defined(ORCA_HAS_WINSPARKLE)
+            UpdateManager::check_for_updates_interactive();
+#else
             wxGetApp().check_new_version_sf(true, 1);
+#endif
         }, "", nullptr, []() {
             return true;
         });

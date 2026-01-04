@@ -91,6 +91,7 @@
 #include "Tab.hpp"
 #include "SysInfoDialog.hpp"
 #include "UpdateDialogs.hpp"
+#include "UpdateManager.hpp"
 #include "Mouse3DController.hpp"
 #include "RemovableDriveManager.hpp"
 #include "InstanceCheck.hpp"
@@ -984,6 +985,16 @@ void GUI_App::post_init()
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: false";
     }
 
+    // Initialize the auto-update manager
+#if defined(ORCA_HAS_SPARKLE) || defined(ORCA_HAS_WINSPARKLE)
+    {
+        // Use the appcast URL for Sparkle/WinSparkle (different from version_check_url)
+        std::string appcast_url = "https://check-version.orcaslicer.com/appcast.xml";
+        UpdateManager::init(appcast_url, "");
+        BOOST_LOG_TRIVIAL(info) << "UpdateManager initialized with appcast URL: " << appcast_url;
+    }
+#endif
+
     // The extra CallAfter() is needed because of Mac, where this is the only way
     // to popup a modal dialog on start without screwing combo boxes.
     // This is ugly but I honestly found no better way to do it.
@@ -998,7 +1009,12 @@ void GUI_App::post_init()
             bool        sys_preset  = app_config->get("sync_system_preset") == "true";
             this->preset_updater->sync(http_url, language, network_ver, sys_preset ? preset_bundle : nullptr);
 
+            // Check for application updates
+#if defined(ORCA_HAS_SPARKLE) || defined(ORCA_HAS_WINSPARKLE)
+            UpdateManager::check_for_updates_background();
+#else
             this->check_new_version_sf();
+#endif
             if (is_user_login() && !app_config->get_stealth_mode()) {
               // this->check_privacy_version(0);
               request_user_handle(0);
@@ -2240,6 +2256,11 @@ bool GUI_App::OnInit()
 
 int GUI_App::OnExit()
 {
+    // Shutdown the auto-update manager
+#if defined(ORCA_HAS_SPARKLE) || defined(ORCA_HAS_WINSPARKLE)
+    UpdateManager::shutdown();
+#endif
+
     stop_sync_user_preset();
 
     if (m_device_manager) {
@@ -4630,7 +4651,7 @@ std::string base64url_encode(const unsigned char* data, std::size_t length)
 
 std::optional<std::vector<unsigned char>> load_signature_key()
 {
-#if ORCA_UPDATER_SIG_KEY_AVAILABLE
+#ifdef ORCA_UPDATER_SIG_KEY_B64
     std::string key = ORCA_UPDATER_SIG_KEY_B64;
     boost::algorithm::trim(key);
     if (key.empty())

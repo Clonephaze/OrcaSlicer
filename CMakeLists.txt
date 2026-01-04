@@ -811,6 +811,11 @@ function(orcaslicer_copy_dlls target config postfix output_dlls)
             ${TOP_LEVEL_PROJECT_DIR}/deps/WebView2/lib/win-${_arch}/WebView2Loader.dll
         DESTINATION ${_out_dir})
 
+    # WinSparkle for auto-updates
+    if(EXISTS "${CMAKE_PREFIX_PATH}/bin/WinSparkle.dll")
+        file(COPY ${CMAKE_PREFIX_PATH}/bin/WinSparkle.dll DESTINATION ${_out_dir})
+    endif()
+
     file(COPY ${CMAKE_PREFIX_PATH}/bin/occt/TKBO.dll
             ${CMAKE_PREFIX_PATH}/bin/occt/TKBRep.dll
             ${CMAKE_PREFIX_PATH}/bin/occt/TKCAF.dll

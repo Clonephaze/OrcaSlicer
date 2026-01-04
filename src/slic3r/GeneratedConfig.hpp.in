@@ -1,5 +1,5 @@
 #pragma once
 
+// Ed25519 public key for verifying update signatures (used by load_signature_key)
 #define ORCA_UPDATER_SIG_KEY_B64 "@ORCA_UPDATER_SIG_KEY_B64@"
-#define ORCA_UPDATER_SIG_KEY_AVAILABLE @ORCA_UPDATER_SIG_KEY_AVAILABLE@
 

@@ -386,6 +386,16 @@ endif ()
 include(OCCT/OCCT.cmake)
 include(OpenCV/OpenCV.cmake)
 
+# WinSparkle for Windows auto-updates
+if(WIN32)
+    include(WinSparkle/WinSparkle.cmake)
+endif()
+
+# Sparkle 2 for macOS auto-updates
+if(APPLE)
+    include(Sparkle/Sparkle.cmake)
+endif()
+
 set(_dep_list
     dep_Boost
     dep_TBB
@@ -410,10 +420,17 @@ set(_dep_list
 if (MSVC)
     # Experimental
     #list(APPEND _dep_list "dep_qhull")
+    # WinSparkle for auto-updates
+    list(APPEND _dep_list "dep_WinSparkle")
 else()
     list(APPEND _dep_list "dep_Qhull")
     # Not working, static build has different Eigen
     #list(APPEND _dep_list "dep_libigl")
+endif()
+
+if (APPLE)
+    # Sparkle 2 for auto-updates
+    list(APPEND _dep_list "dep_Sparkle")
 endif()
 
 add_custom_target(deps ALL DEPENDS ${_dep_list})

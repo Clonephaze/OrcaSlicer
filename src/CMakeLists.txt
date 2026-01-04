@@ -131,6 +131,11 @@ if (APPLE)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
     # -liconv: boost links to libiconv by default
     target_link_libraries(OrcaSlicer "-liconv -framework IOKit" "-framework CoreFoundation" "-framework AVFoundation" "-framework AVKit" "-framework CoreMedia" "-framework VideoToolbox" -lc++)
+    # Set rpath for embedded frameworks (Sparkle)
+    set_target_properties(OrcaSlicer PROPERTIES
+        INSTALL_RPATH "@executable_path/../Frameworks"
+        BUILD_WITH_INSTALL_RPATH TRUE
+    )
 elseif (MSVC)
     # Manifest is provided through OrcaSlicer.rc, don't generate your own.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
@@ -252,6 +257,24 @@ else ()
         COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
         COMMENT "Symlinking the resources directory into the build tree"
         VERBATIM)
+
+    # Embed Sparkle framework for auto-updates
+    if (CMAKE_MACOSX_BUNDLE)
+        find_library(SPARKLE_FRAMEWORK Sparkle PATHS ${CMAKE_PREFIX_PATH}/Frameworks)
+        if(SPARKLE_FRAMEWORK)
+            if (CMAKE_CONFIGURATION_TYPES)
+                set(BUNDLE_FRAMEWORKS_DIR "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/OrcaSlicer.app/Contents/Frameworks")
+            else()
+                set(BUNDLE_FRAMEWORKS_DIR "${CMAKE_CURRENT_BINARY_DIR}/OrcaSlicer.app/Contents/Frameworks")
+            endif()
+            add_custom_command(TARGET OrcaSlicer POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${BUNDLE_FRAMEWORKS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory "${SPARKLE_FRAMEWORK}" "${BUNDLE_FRAMEWORKS_DIR}/Sparkle.framework"
+                COMMENT "Embedding Sparkle.framework into app bundle"
+                VERBATIM)
+            message(STATUS "Sparkle framework will be embedded: ${SPARKLE_FRAMEWORK}")
+        endif()
+    endif()
 endif ()
 
 # Slic3r binary install target. Default build type is release in case no CMAKE_BUILD_TYPE is provided.

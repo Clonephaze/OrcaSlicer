@@ -456,6 +456,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
+    GUI/UpdateManager.hpp
+    GUI/UpdateManager.cpp
     GUI/UpgradePanel.cpp
     GUI/UpgradePanel.hpp
     GUI/UserManager.cpp
@@ -648,6 +650,7 @@ if (APPLE)
             GUI/InstanceCheckMac.mm
             GUI/InstanceCheckMac.h
             GUI/GUI_UtilsMac.mm
+            GUI/UpdateManagerMac.mm
             GUI/wxMediaCtrl2.mm
             GUI/wxMediaCtrl2.h
         )
@@ -671,11 +674,6 @@ string(REPLACE "\n" "" ORCA_UPDATER_SIG_KEY_B64 "${ORCA_UPDATER_SIG_KEY_B64}")
 string(REPLACE "\r" "" ORCA_UPDATER_SIG_KEY_B64 "${ORCA_UPDATER_SIG_KEY_B64}")
 string(REPLACE "\t" "" ORCA_UPDATER_SIG_KEY_B64 "${ORCA_UPDATER_SIG_KEY_B64}")
 string(REPLACE " "  "" ORCA_UPDATER_SIG_KEY_B64 "${ORCA_UPDATER_SIG_KEY_B64}")
-
-set(ORCA_UPDATER_SIG_KEY_AVAILABLE 0)
-if(ORCA_UPDATER_SIG_KEY_B64)
-    set(ORCA_UPDATER_SIG_KEY_AVAILABLE 1)
-endif()
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/GeneratedConfig.hpp.in
                ${CMAKE_CURRENT_BINARY_DIR}/GeneratedConfig.hpp
@@ -707,6 +705,16 @@ target_link_libraries(libslic3r_gui libslic3r cereal::cereal imgui imguizmo mini
 
 if (MSVC)
     target_link_libraries(libslic3r_gui Setupapi.lib)
+    # WinSparkle for auto-updates
+    find_library(WINSPARKLE_LIB WinSparkle PATHS ${CMAKE_PREFIX_PATH}/lib)
+    if(WINSPARKLE_LIB)
+        target_link_libraries(libslic3r_gui ${WINSPARKLE_LIB})
+        target_include_directories(libslic3r_gui PRIVATE ${CMAKE_PREFIX_PATH}/include)
+        target_compile_definitions(libslic3r_gui PRIVATE ORCA_HAS_WINSPARKLE)
+        message(STATUS "WinSparkle found: ${WINSPARKLE_LIB}")
+    else()
+        message(STATUS "WinSparkle not found, auto-update disabled on Windows")
+    endif()
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     FIND_LIBRARY(WAYLAND_SERVER_LIBRARIES NAMES wayland-server)
     FIND_LIBRARY(WAYLAND_EGL_LIBRARIES    NAMES wayland-egl)
@@ -722,6 +730,15 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY} "-framework Security")
+    # Sparkle 2 for auto-updates
+    find_library(SPARKLE_FRAMEWORK Sparkle PATHS ${CMAKE_PREFIX_PATH}/Frameworks)
+    if(SPARKLE_FRAMEWORK)
+        target_link_libraries(libslic3r_gui ${SPARKLE_FRAMEWORK})
+        target_compile_definitions(libslic3r_gui PRIVATE ORCA_HAS_SPARKLE)
+        message(STATUS "Sparkle found: ${SPARKLE_FRAMEWORK}")
+    else()
+        message(STATUS "Sparkle not found, auto-update disabled on macOS")
+    endif()
 endif()
 
 if (SLIC3R_STATIC)

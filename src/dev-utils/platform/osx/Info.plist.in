@@ -135,5 +135,14 @@
     <key>ASAN_OPTIONS</key>
     <string>detect_container_overflow=0</string>
   </dict>
+  <!-- Sparkle 2 Auto-Update Configuration -->
+  <key>SUFeedURL</key>
+  <string>https://check-version.orcaslicer.com/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>eLFARgt9i0VZQR4FtXiTL6jdwjkGr2RMPjfYCCfBWeM=</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUAllowsAutomaticUpdates</key>
+  <true/>
 </dict>
 </plist>

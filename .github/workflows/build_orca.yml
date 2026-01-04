@@ -103,11 +103,13 @@ jobs:
         if: inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          ./build_release_macos.sh -s -n -x -a universal -t 10.15 -1
+          # TODO: Change back to -a universal after auto-update testing is complete
+          ./build_release_macos.sh -s -n -x -a arm64 -t 10.15 -1
 
  # Thanks to RaySajuuk, it's working now
       - name: Sign app and notary
-        if: github.repository == 'OrcaSlicer/OrcaSlicer' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && inputs.os == 'macos-14'
+        # TODO: Remove feature/auto-update after testing is complete
+        if: github.repository == 'OrcaSlicer/OrcaSlicer' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || github.ref == 'refs/heads/feature/auto-update') && inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -124,27 +126,28 @@ jobs:
           security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $P12_PASSWORD $KEYCHAIN_PATH
-          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app
+          # TODO: Change build/arm64 back to build/universal after auto-update testing is complete
+          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer.app
           # Sign OrcaSlicer_profile_validator.app if it exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app
+          if [ -f "${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app
           fi
-          
+
           # Create main OrcaSlicer DMG without the profile validator helper
-          mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_dmg
-          rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
-          cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/
-          ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+          mkdir -p ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg
+          rm -rf ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/*
+          cp -R ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/
+          ln -sfn /Applications ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/Applications
+          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
           codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
-          
+
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
-            rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
-            cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
-            ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          if [ -f "${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            mkdir -p ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg
+            rm -rf ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/*
+            cp -R ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/
+            ln -sfn /Applications ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/Applications
+            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
             codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
           
@@ -159,23 +162,65 @@ jobs:
             xcrun stapler staple OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
 
+      - name: Sign DMG for Sparkle auto-update
+        # TODO: Remove feature/auto-update after testing is complete
+        if: github.repository == 'OrcaSlicer/OrcaSlicer' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || github.ref == 'refs/heads/feature/auto-update') && inputs.os == 'macos-14'
+        working-directory: ${{ github.workspace }}
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Get the Sparkle sign_update tool from deps (installed to OrcaSlicer_dep/bin)
+          SIGN_UPDATE="${{ github.workspace }}/deps/build/arm64/OrcaSlicer_dep/bin/sign_update"
+
+          # Fallback to x86_64 if arm64 not found
+          if [ ! -f "$SIGN_UPDATE" ]; then
+            SIGN_UPDATE="${{ github.workspace }}/deps/build/x86_64/OrcaSlicer_dep/bin/sign_update"
+          fi
+
+          if [ -f "$SIGN_UPDATE" ] && [ -n "$SPARKLE_PRIVATE_KEY" ]; then
+            # Write the private key to a temp file
+            echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_private_key
+            chmod 600 /tmp/sparkle_private_key
+
+            # Sign the DMG and capture the signature
+            SIGNATURE=$("$SIGN_UPDATE" "OrcaSlicer_Mac_universal_${{ env.ver }}.dmg" -f /tmp/sparkle_private_key)
+
+            # Clean up the key file
+            rm -f /tmp/sparkle_private_key
+
+            # Save signature to a file for later use in appcast generation
+            echo "$SIGNATURE" > OrcaSlicer_Mac_universal_${{ env.ver }}.dmg.sig
+            echo "Sparkle signature generated: $SIGNATURE"
+
+            # Also output as GitHub Actions output
+            echo "sparkle_signature=$SIGNATURE" >> $GITHUB_OUTPUT
+          else
+            echo "Warning: Sparkle sign_update tool not found at $SIGN_UPDATE or private key not set, skipping signature generation"
+            if [ ! -f "$SIGN_UPDATE" ]; then
+              echo "sign_update not found. Available files:"
+              ls -la "${{ github.workspace }}/deps/build/arm64/OrcaSlicer_dep/" || true
+            fi
+          fi
+
       - name: Create DMG without notary
-        if: github.ref != 'refs/heads/main' && inputs.os == 'macos-14'
+        # TODO: Remove feature/auto-update exclusion after testing is complete
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/feature/auto-update' && !startsWith(github.ref, 'refs/heads/release/') && inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_dmg
-          rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
-          cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/
-          ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
-          
+          # TODO: Change build/arm64 back to build/universal after auto-update testing is complete
+          mkdir -p ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg
+          rm -rf ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/*
+          cp -R ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/
+          ln -sfn /Applications ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg/Applications
+          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/arm64/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
-            rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
-            cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
-            ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          if [ -f "${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+            mkdir -p ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg
+            rm -rf ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/*
+            cp -R ${{ github.workspace }}/build/arm64/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/
+            ln -sfn /Applications ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg/Applications
+            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/arm64/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
 
       - name: Upload artifacts mac
@@ -184,6 +229,14 @@ jobs:
         with:
           name: OrcaSlicer_Mac_universal_${{ env.ver }}
           path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+
+      - name: Upload Sparkle signature mac
+        if: inputs.os == 'macos-14'
+        uses: actions/upload-artifact@v5
+        with:
+          name: OrcaSlicer_Mac_universal_${{ env.ver }}_sig
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}.dmg.sig
+          if-no-files-found: ignore
 
       - name: Upload OrcaSlicer_profile_validator DMG mac
         if: inputs.os == 'macos-14'
