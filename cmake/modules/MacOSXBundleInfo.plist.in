@@ -131,13 +131,22 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>${MACOSX_BUNDLE_COPYRIGHT}</string>
-	<key>NSAppTransportSecurity</key>  
+	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Disable App Transport Security. Resolves https://github.com/OrcaSlicer/OrcaSlicer/issues/791 -->
 		<key>NSAllowsArbitraryLoads</key>
-		<true/>  
+		<true/>
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
+	<!-- Sparkle 2 Auto-Update Configuration -->
+	<key>SUFeedURL</key>
+	<string>https://check-version.orcaslicer.com/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>eLFARgt9i0VZQR4FtXiTL6jdwjkGr2RMPjfYCCfBWeM=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<true/>
 </dict>
 </plist>

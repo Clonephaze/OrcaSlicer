@@ -88,21 +88,39 @@ void UpdateManager::init(const std::string& appcast_url, const std::string& publ
     BOOST_LOG_TRIVIAL(info) << "UpdateManager: Initializing Sparkle 2";
 
     @autoreleasepool {
-        // Create the delegate
-        s_updater_delegate = [[OrcaSparkleDelegate alloc] init];
+        @try {
+            // Create the delegate
+            s_updater_delegate = [[OrcaSparkleDelegate alloc] init];
 
-        // Create the standard updater controller
-        // This reads SUFeedURL and SUPublicEDKey from Info.plist
-        s_updater_controller = [[SPUStandardUpdaterController alloc]
-            initWithStartingUpdater:YES
-                    updaterDelegate:s_updater_delegate
-                 userDriverDelegate:nil];
+            // Create the standard updater controller
+            // Use startingUpdater:NO to defer startup and avoid immediate XPC errors
+            // This allows the app to start even if code signing prevents XPC communication
+            s_updater_controller = [[SPUStandardUpdaterController alloc]
+                initWithStartingUpdater:NO
+                        updaterDelegate:s_updater_delegate
+                     userDriverDelegate:nil];
 
-        if (s_updater_controller) {
-            s_initialized = true;
-            BOOST_LOG_TRIVIAL(info) << "UpdateManager: Sparkle 2 initialized successfully";
-        } else {
-            BOOST_LOG_TRIVIAL(error) << "UpdateManager: Failed to initialize Sparkle 2";
+            if (s_updater_controller) {
+                // Try to start the updater - may fail on ad-hoc signed builds
+                NSError *error = nil;
+                if ([s_updater_controller.updater startUpdater:&error]) {
+                    s_initialized = true;
+                    BOOST_LOG_TRIVIAL(info) << "UpdateManager: Sparkle 2 initialized successfully";
+                } else {
+                    BOOST_LOG_TRIVIAL(warning) << "UpdateManager: Sparkle updater failed to start: "
+                                               << [[error localizedDescription] UTF8String];
+                    BOOST_LOG_TRIVIAL(warning) << "UpdateManager: This is expected for ad-hoc signed builds. "
+                                               << "Auto-update will work in properly signed release builds.";
+                    // Keep controller alive for potential future use
+                    s_initialized = true;
+                }
+            } else {
+                BOOST_LOG_TRIVIAL(error) << "UpdateManager: Failed to create Sparkle controller";
+            }
+        }
+        @catch (NSException *exception) {
+            BOOST_LOG_TRIVIAL(error) << "UpdateManager: Exception during Sparkle init: "
+                                     << [[exception reason] UTF8String];
         }
     }
 }
