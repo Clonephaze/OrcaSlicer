@@ -460,9 +460,15 @@ void Import3mfDialog::populate_printer_dropdown()
     PresetBundle* preset_bundle = wxGetApp().preset_bundle;
     if (!preset_bundle) return;
 
-    // Group printers by type: System vs User  
-    std::vector<std::string> system_printers;
-    std::vector<std::string> user_printers;
+    // Group printers similar to filament dropdown style
+    struct PrinterInfo {
+        std::string name;       // Internal preset name
+        std::string label;      // Display label
+        std::string vendor;     // Vendor for grouping
+    };
+    
+    std::vector<PrinterInfo> user_printers;
+    std::vector<PrinterInfo> system_printers;
     
     const Preset& current = preset_bundle->printers.get_selected_preset();
     std::string selected_name = current.name;
@@ -471,32 +477,68 @@ void Import3mfDialog::populate_printer_dropdown()
         if (!preset.is_visible || preset.is_default)
             continue;
         
-        if (preset.is_system) {
-            system_printers.push_back(preset.name);
+        PrinterInfo info;
+        info.name = preset.name;
+        info.label = preset.label(false);  // Use alias if available
+        
+        // Get vendor from config
+        const ConfigOptionString* vendor_opt = preset.config.option<ConfigOptionString>("printer_vendor");
+        if (vendor_opt && !vendor_opt->value.empty()) {
+            info.vendor = vendor_opt->value;
+            // Normalize "Bambu Lab" to "Bambu" like sidebar does
+            if (info.vendor == "Bambu Lab") info.vendor = "Bambu";
         } else {
-            user_printers.push_back(preset.name);
+            info.vendor = "Other";
+        }
+        
+        if (!preset.is_system) {
+            user_printers.push_back(info);
+        } else {
+            system_printers.push_back(info);
         }
     }
     
-    // Sort alphabetically
-    std::sort(system_printers.begin(), system_printers.end());
-    std::sort(user_printers.begin(), user_printers.end());
+    // Sort user presets alphabetically by label
+    std::sort(user_printers.begin(), user_printers.end(), 
+              [](const auto& a, const auto& b) { return a.label < b.label; });
+    
+    // Sort system presets by vendor priority, then alphabetically
+    std::vector<std::string> priority_vendors = {"Bambu", "Prusa"};
+    std::sort(system_printers.begin(), system_printers.end(), 
+              [&priority_vendors](const auto& a, const auto& b) {
+        // Compare vendor priority
+        auto vendor_idx_a = std::find(priority_vendors.begin(), priority_vendors.end(), a.vendor);
+        auto vendor_idx_b = std::find(priority_vendors.begin(), priority_vendors.end(), b.vendor);
+        if (vendor_idx_a != vendor_idx_b)
+            return vendor_idx_a < vendor_idx_b;
+        
+        // Alphabetical by label
+        return a.label < b.label;
+    });
     
     int selected_idx = -1;
     int current_idx = 0;
     
-    // Add user presets with native grouping
-    for (const auto& name : user_printers) {
-        m_printer_dropdown->Append(from_u8(name), wxNullBitmap, _L("User presets"));
-        if (name == selected_name) selected_idx = current_idx;
-        current_idx++;
+    // Add user presets with separator header (like filament dropdown)
+    if (!user_printers.empty()) {
+        m_printer_dropdown->Append(_L("User presets"), wxNullBitmap, wxEmptyString, nullptr, DD_ITEM_STYLE_SPLIT_ITEM);
+        
+        for (const auto& info : user_printers) {
+            m_printer_dropdown->Append(from_u8(info.label), wxNullBitmap);
+            if (info.name == selected_name) selected_idx = current_idx;
+            current_idx++;
+        }
     }
     
-    // Add system presets with native grouping
-    for (const auto& name : system_printers) {
-        m_printer_dropdown->Append(from_u8(name), wxNullBitmap, _L("System presets"));
-        if (name == selected_name) selected_idx = current_idx;
-        current_idx++;
+    // Add system presets with separator header and vendor grouping
+    if (!system_printers.empty()) {
+        m_printer_dropdown->Append(_L("System presets"), wxNullBitmap, wxEmptyString, nullptr, DD_ITEM_STYLE_SPLIT_ITEM);
+        
+        for (const auto& info : system_printers) {
+            m_printer_dropdown->Append(from_u8(info.label), wxNullBitmap, from_u8(info.vendor));
+            if (info.name == selected_name) selected_idx = current_idx;
+            current_idx++;
+        }
     }
     
     // Select current printer or first item
@@ -833,7 +875,11 @@ LoadType determine_3mf_load_type(std::string filename, std::string override_sett
         return LoadType::Unknown;  // Cancelled
         
     } else {
-        // Default: Open as Project
+        // Default: Open as Project (Load All behavior)
+        // Check if user has enabled skip options in preferences
+        bool skip_printer_pref = wxGetApp().app_config->get(SETTING_PROJECT_SKIP_PRINTER) == "true";
+        bool skip_filament_pref = wxGetApp().app_config->get(SETTING_PROJECT_SKIP_FILAMENT) == "true";
+        
         g_pending_3mf_import_settings = Import3mfSettings();
         g_pending_3mf_import_settings.project_filament_count = project_info.filament_count;
         g_pending_3mf_import_settings.project_filament_colors = project_info.filament_colors;
@@ -841,6 +887,11 @@ LoadType determine_3mf_load_type(std::string filename, std::string override_sett
         g_pending_3mf_import_settings.project_filament_preset_names = project_info.filament_preset_names;
         g_pending_3mf_import_settings.project_has_printer_settings = project_info.has_printer_settings;
         g_pending_3mf_import_settings.project_has_filament_settings = project_info.has_filament_settings;
+        
+        // Apply skip preferences
+        g_pending_3mf_import_settings.import_printer_settings = !skip_printer_pref;
+        g_pending_3mf_import_settings.import_filament_settings = !skip_filament_pref;
+        
         g_has_pending_3mf_import_settings = pre_parsed;
         return LoadType::OpenProject;
     }
