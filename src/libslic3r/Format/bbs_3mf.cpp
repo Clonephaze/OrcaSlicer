@@ -8721,7 +8721,8 @@ bool bbs_3mf_preparse_project_info(const char* path, Bbs3mfProjectInfo& info)
         }
     }
     
-    // If no filament colors found from project_settings, check for model config
+    // If no filament colors found from project_settings.config, try model_settings.config as fallback.
+    // Older 3MF files or non-BBS exports may store filament info in model_settings instead.
     if (info.filament_count == 0) {
         if (mz_zip_reader_locate_file_v2(&archive, "Metadata/model_settings.config", nullptr, 0, &file_index) != MZ_FALSE) {
             mz_zip_archive_file_stat stat;

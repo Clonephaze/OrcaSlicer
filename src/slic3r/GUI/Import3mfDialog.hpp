@@ -20,11 +20,13 @@ struct Bbs3mfProjectInfo;
 
 namespace GUI {
 
-// Fixed dialog widths (in DIP)
+// Dialog widths in DIP (device-independent pixels)
+// SMALL: Basic dialog without filament mapping
+// LARGE: Extended dialog with 2-column filament mapping grid
 constexpr int IMPORT_DIALOG_WIDTH_SMALL = 380;
 constexpr int IMPORT_DIALOG_WIDTH_LARGE = 560;
 
-// Load type for 3MF/project files
+// Load type returned by determine_3mf_load_type()
 enum class LoadType : unsigned char
 {
     Unknown,
@@ -33,7 +35,9 @@ enum class LoadType : unsigned char
     LoadConfig
 };
 
-// Structure to hold user's 3MF import preferences
+// Structure to hold user's 3MF import preferences.
+// Populated by Import3mfDialog when user makes import choices,
+// consumed by Plater::load_files() to apply those choices.
 struct Import3mfSettings
 {
     // User choices
@@ -163,7 +167,9 @@ protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
 };
 
-// Functions to determine load type and access pending 3MF import settings
+// Main entry point: Shows import dialog and returns user's choice.
+// If override_setting is provided, skips dialog and uses that setting directly.
+// Stores import settings in global state accessible via get_pending_3mf_import_settings().
 LoadType determine_3mf_load_type(std::string filename, std::string override_setting = "");
 
 bool has_pending_3mf_import_settings();

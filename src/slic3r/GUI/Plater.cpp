@@ -6053,8 +6053,16 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             }
                         }
 
+                        // =========================================================
+                        // Determine skip flags early for validation checks
+                        // =========================================================
+                        bool skip_printer = (strategy & LoadStrategy::SkipPrinterConfig) != 0;
+                        bool skip_filament = (strategy & LoadStrategy::SkipFilamentConfig) != 0;
+
+                        // Only validate presets if we're actually loading them
+                        // Skip validation if user chose to skip both printer and filament presets
                         auto choise = wxGetApp().app_config->get("no_warn_when_modified_gcodes");
-                        if (choise.empty() || choise != "true") {
+                        if ((choise.empty() || choise != "true") && !(skip_printer && skip_filament)) {
                             // BBS: first validate the printer
                             // validate the system profiles
                             std::set<std::string> modified_gcodes;
@@ -6099,9 +6107,11 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             if (wipe_tower_y_opt)
                                 file_wipe_tower_y = *wipe_tower_y_opt;
 
-                            // Pass skip flags to load_config_model based on user's import choices
-                            bool skip_printer = (strategy & LoadStrategy::SkipPrinterConfig) != 0;
-                            bool skip_filament = (strategy & LoadStrategy::SkipFilamentConfig) != 0;
+                            // =========================================================
+                            // User's Import Choices Processing
+                            // =========================================================
+                            // Skip flags determined earlier (before validation)
+                            // If skipping, we save current presets before loading and restore after.
                             
                             // Get the user's import settings from the dialog (if any)
                             Import3mfSettings import_settings;

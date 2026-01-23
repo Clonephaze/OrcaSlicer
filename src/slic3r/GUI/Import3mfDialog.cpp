@@ -330,16 +330,20 @@ Import3mfDialog::Import3mfDialog(const std::string& filename)
 
 wxColour Import3mfDialog::hex_to_colour(const std::string& hex)
 {
-    if (hex.empty()) return wxColour(128, 128, 128);
+    if (hex.empty()) return wxColour(128, 128, 128);  // Default gray
     
     std::string h = hex;
     if (h[0] == '#') h = h.substr(1);
     
-    if (h.length() >= 6) {
-        unsigned long val = 0;
-        if (sscanf(h.c_str(), "%lx", &val) == 1) {
-            return wxColour((val >> 16) & 0xFF, (val >> 8) & 0xFF, val & 0xFF);
-        }
+    // Validate hex string length
+    if (h.length() < 6) {
+        BOOST_LOG_TRIVIAL(warning) << "Invalid hex color string: " << hex;
+        return wxColour(128, 128, 128);
+    }
+    
+    unsigned long val = 0;
+    if (sscanf(h.c_str(), "%lx", &val) == 1) {
+        return wxColour((val >> 16) & 0xFF, (val >> 8) & 0xFF, val & 0xFF);
     }
     return wxColour(128, 128, 128);
 }
@@ -764,7 +768,10 @@ Import3mfSettings Import3mfDialog::get_import_settings() const
 }
 
 //------------------------------------------------------------------------------
-// Global functions
+// Global state for passing import settings from dialog to loader
+// Note: This pattern is used because determine_3mf_load_type() is called
+// before load_files() and we need to pass the user's choices to the loader.
+// The settings are cleared after use in Plater::open_3mf_file().
 //------------------------------------------------------------------------------
 
 static Import3mfSettings g_pending_3mf_import_settings;

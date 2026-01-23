@@ -168,8 +168,8 @@ enum class LoadStrategy
     Silence = 32,
     ImperialUnits = 64,
     SkipPainting = 128,       // Skip loading mmu_segmentation, custom_supports, seam, fuzzy_skin data
-    SkipPrinterConfig = 256,  // Skip loading printer settings (keep current printer)
-    SkipFilamentConfig = 512, // Skip loading filament settings (keep current filaments)
+    SkipPrinterConfig = 256,  // Skip loading printer preset (keep user's current printer)
+    SkipFilamentConfig = 512, // Skip loading filament presets (keep user's current filaments)
 
     Restore = 0x10000 | LoadModel | LoadConfig | LoadAuxiliary | Silence,
 };
